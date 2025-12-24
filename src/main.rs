@@ -2,6 +2,7 @@ use std::{collections::HashMap, error::Error, sync::LazyLock};
 
 use clap::{Parser, Subcommand};
 use llms_from_scratch_burn::{Listing, listings::ch02::L2_1};
+use log::info;
 
 static LISTINGS: LazyLock<HashMap<&str, Box<dyn Listing>>> = LazyLock::new(|| {
     let mut listings: HashMap<&str, Box<dyn Listing>> = HashMap::new();
@@ -36,9 +37,11 @@ enum Commands {
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let cli = Cli::parse();
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .init();
 
-    match cli.command {
+    match Cli::parse().command {
         Commands::Example { id } => {
             println!("example: {:?}", id);
         }
@@ -46,6 +49,8 @@ fn main() -> Result<(), Box<dyn Error>> {
             println!("exercise: {:?}", id);
         }
         Commands::Listing { id } => {
+            info!(id = id.as_str(); "Running listing");
+
             let listing = LISTINGS.get(id.as_str()).unwrap();
             listing.main()?;
         }

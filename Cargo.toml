@@ -6,4 +6,6 @@ edition = "2024"
 [dependencies]
 burn = "0.19.1"
 clap = { version = "4.5.53", features = ["derive"] }
+env_logger = { version = "0.11.8", features = ["kv"] }
+log = { version = "0.4.29", features = ["kv"] }
 reqwest = { version = "0.12.28", features = ["json", "blocking"] }
