@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 burn = "0.19.1"
+clap = { version = "4.5.53", features = ["derive"] }
 reqwest = { version = "0.12.28", features = ["json", "blocking"] }
