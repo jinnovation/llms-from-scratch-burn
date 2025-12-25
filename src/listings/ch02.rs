@@ -89,7 +89,7 @@ mod tests {
         io,
     };
 
-    use crate::listings::ch02::{tokenize, uniq};
+    use crate::listings::ch02::{construct_vocab, tokenize};
 
     #[test]
     fn test_tokenize() {
@@ -98,11 +98,8 @@ mod tests {
             Vec::from([
                 "Hello", ",", "world", ".", "Is", "this", "--", "a", "test", "?"
             ])
-        )
-    }
+        );
 
-    #[test]
-    fn test_tokenize_short_story() {
         let client = reqwest::blocking::Client::new();
 
         let path = "/tmp/the-verdict.txt";
@@ -116,18 +113,32 @@ mod tests {
 
         let opened = fs::read_to_string(path).unwrap();
 
-        let tokenized = tokenize(&opened);
-
         assert_eq!(
-            tokenized[0..30],
+            tokenize(&opened)[0..30],
             [
                 "I", "HAD", "always", "thought", "Jack", "Gisburn", "rather", "a", "cheap",
                 "genius", "--", "though", "a", "good", "fellow", "enough", "--", "so", "it", "was",
                 "no", "great", "surprise", "to", "me", "to", "hear", "that", ",", "in"
             ]
         );
+    }
 
-        let vocab = uniq(tokenized);
+    #[test]
+    fn test_construct_vocab() {
+        let client = reqwest::blocking::Client::new();
+
+        let path = "/tmp/the-verdict.txt";
+
+        let mut res = client.get(
+            "https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/ch02/01_main-chapter-code/the-verdict.txt",
+        ).send().unwrap().error_for_status().unwrap();
+        let mut file = File::create(path).unwrap();
+
+        io::copy(&mut res, &mut file).unwrap();
+
+        let opened = fs::read_to_string(path).unwrap();
+
+        let vocab = construct_vocab(&opened);
 
         assert_eq!(vocab.len(), 1130);
     }
