@@ -145,5 +145,8 @@ mod tests {
 
         assert_eq!(vocab["!"], 0);
         assert_eq!(vocab["\""], 1);
+        assert_eq!(vocab["'"], 2);
+        assert_eq!(vocab["Her"], 49);
+        assert_eq!(vocab["Hermia"], 50);
     }
 }
