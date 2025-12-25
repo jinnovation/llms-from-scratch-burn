@@ -49,11 +49,12 @@ fn construct_vocab(corpus: &String) -> HashMap<String, usize> {
     let mut all_words = uniq(tokenize(&corpus));
     all_words.sort();
 
-    all_words.iter().fold(HashMap::new(), |mut acc, word| {
-        let count = acc.entry(word.to_string()).or_insert(0);
-        *count += 1;
-        acc
-    })
+    HashMap::from_iter(
+        all_words
+            .iter()
+            .enumerate()
+            .map(|tuple| (tuple.1.to_string(), tuple.0)),
+    )
 }
 
 impl Listing for L2_1 {
@@ -141,5 +142,8 @@ mod tests {
         let vocab = construct_vocab(&opened);
 
         assert_eq!(vocab.len(), 1130);
+
+        assert_eq!(vocab["!"], 0);
+        assert_eq!(vocab["\""], 1);
     }
 }
