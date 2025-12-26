@@ -191,6 +191,7 @@ impl Tokenizer for SimpleTokenizerV2 {
 #[cfg(test)]
 mod tests {
     use std::{
+        collections::HashSet,
         fs::{self, File},
         io,
     };
@@ -316,5 +317,30 @@ mod tests {
 
         assert_eq!(vocab["<|endoftext|>"], 1130);
         assert_eq!(vocab["<|unk|>"], 1131);
+    }
+
+    #[test]
+    fn test_gpt2_tiktoken_encoder() {
+        let tokenizer = tiktoken_rs::get_bpe_from_model("gpt2").unwrap();
+
+        let integers = tokenizer
+            .encode(
+                "Hello, do you like tea? <|endoftext|> In the sunlit terraces of someunknownPlace.",
+                &HashSet::from(["<|endoftext|>"]),
+            )
+            .0;
+
+        assert_eq!(
+            integers,
+            [
+                15496, 11, 466, 345, 588, 8887, 30, 220, 50256, 554, 262, 4252, 18250, 8812, 2114,
+                286, 617, 34680, 27271, 13
+            ],
+        );
+
+        assert_eq!(
+            tokenizer.decode(integers).unwrap(),
+            "Hello, do you like tea? <|endoftext|> In the sunlit terraces of someunknownPlace."
+        )
     }
 }
