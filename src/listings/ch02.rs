@@ -152,13 +152,21 @@ enum Corpus {
     Url(String),
 }
 
+impl Corpus {
+    fn to_vocab(&self, additional_tokens: Option<Vec<String>>) -> HashMap<String, usize> {
+        match self {
+            Corpus::Raw(text) => construct_vocab(text, additional_tokens),
+            Corpus::Url(url) => {
+                construct_vocab_from_url(url.to_string(), additional_tokens).unwrap()
+            }
+        }
+    }
+}
+
 impl SimpleTokenizerV2 {
     fn new(corpus: Corpus) -> Self {
-        let additional_tokens = vec!["<|endoftext|>".to_string(), "<|unk|>".to_string()];
-        let vocab = match corpus {
-            Corpus::Raw(text) => construct_vocab(&text, additional_tokens.into()),
-            Corpus::Url(url) => construct_vocab_from_url(url, additional_tokens.into()).unwrap(),
-        };
+        let additional_tokens = vec!["<|endoftext|>".into(), "<|unk|>".into()];
+        let vocab = corpus.to_vocab(additional_tokens.into());
         Self {
             str_to_int: vocab.clone(),
             int_to_str: vocab.iter().map(|(k, v)| (*v, k.clone())).collect(),
