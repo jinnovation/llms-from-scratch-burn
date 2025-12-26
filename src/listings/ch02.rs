@@ -47,11 +47,8 @@ fn uniq(strings: Vec<&str>) -> Vec<String> {
         .collect()
 }
 
-fn construct_vocab(
-    corpus: &String,
-    additional_tokens: Option<Vec<String>>,
-) -> HashMap<String, usize> {
-    let mut all_words = uniq(tokenize(&corpus));
+fn construct_vocab(corpus: &str, additional_tokens: Option<Vec<String>>) -> HashMap<String, usize> {
+    let mut all_words = uniq(tokenize(corpus));
     all_words.sort();
     if let Some(tokens) = additional_tokens {
         all_words.extend(tokens.iter().map(|t| t.to_string()));
@@ -140,9 +137,8 @@ impl Tokenizer for SimpleTokenizerV1 {
         let tokens: Vec<String> = ids.iter().map(|id| self.int_to_str[id].clone()).collect();
         let joined = tokens.join(" ");
         let regex = Regex::new(r#"\s+([,.?!"()'])"#).unwrap();
-        let replaced = regex.replace_all(&joined, "$1").to_string();
 
-        replaced
+        regex.replace_all(&joined, "$1").to_string()
     }
 }
 
@@ -153,7 +149,7 @@ struct SimpleTokenizerV2 {
 
 enum Corpus {
     Raw(String),
-    URL(String),
+    Url(String),
 }
 
 impl SimpleTokenizerV2 {
@@ -161,7 +157,7 @@ impl SimpleTokenizerV2 {
         let additional_tokens = vec!["<|endoftext|>".to_string(), "<|unk|>".to_string()];
         let vocab = match corpus {
             Corpus::Raw(text) => construct_vocab(&text, additional_tokens.into()),
-            Corpus::URL(url) => construct_vocab_from_url(url, additional_tokens.into()).unwrap(),
+            Corpus::Url(url) => construct_vocab_from_url(url, additional_tokens.into()).unwrap(),
         };
         Self {
             str_to_int: vocab.clone(),
@@ -187,9 +183,8 @@ impl Tokenizer for SimpleTokenizerV2 {
         let tokens: Vec<String> = ids.iter().map(|id| self.int_to_str[id].clone()).collect();
         let joined = tokens.join(" ");
         let regex = Regex::new(r#"\s+([,.?!"()'])"#).unwrap();
-        let replaced = regex.replace_all(&joined, "$1").to_string();
 
-        replaced
+        regex.replace_all(&joined, "$1").to_string()
     }
 }
 
@@ -206,7 +201,7 @@ mod tests {
 
     #[test]
     fn test_simple_tokenizer_v2_special_tokens() {
-        let tokenizer = SimpleTokenizerV2::new(Corpus::URL(
+        let tokenizer = SimpleTokenizerV2::new(Corpus::Url(
             "https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/ch02/01_main-chapter-code/the-verdict.txt".to_string(),
         ));
 
@@ -219,7 +214,7 @@ mod tests {
 
     #[test]
     fn test_simple_tokenizer_v2_roundtrip() {
-        let tokenizer = SimpleTokenizerV2::new(Corpus::URL(
+        let tokenizer = SimpleTokenizerV2::new(Corpus::Url(
             "https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/ch02/01_main-chapter-code/the-verdict.txt".to_string(),
         ));
 
