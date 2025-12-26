@@ -296,25 +296,13 @@ mod tests {
     }
 
     #[test]
-    fn test_tokenize_additional_tokens() {
+    fn test_construct_vocab() {
         let vocab = construct_vocab_from_url(
-
             "https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/ch02/01_main-chapter-code/the-verdict.txt".to_string(),
             vec!["<|endoftext|>".to_string(), "<|unk|>".to_string()].into(),
         ).unwrap();
 
-        assert_eq!(vocab["<|endoftext|>"], 1130);
-        assert_eq!(vocab["<|unk|>"], 1131);
-    }
-
-    #[test]
-    fn test_construct_vocab() {
-        let vocab = construct_vocab_from_url(
-            "https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/ch02/01_main-chapter-code/the-verdict.txt".to_string(),
-            None,
-        ).unwrap();
-
-        assert_eq!(vocab.len(), 1130);
+        assert_eq!(vocab.len(), 1132);
 
         assert_eq!(vocab["!"], 0);
         assert_eq!(vocab["\""], 1);
@@ -325,5 +313,8 @@ mod tests {
         assert_eq!(vocab["younger"], 1127);
         assert_eq!(vocab["your"], 1128);
         assert_eq!(vocab["yourself"], 1129);
+
+        assert_eq!(vocab["<|endoftext|>"], 1130);
+        assert_eq!(vocab["<|unk|>"], 1131);
     }
 }
