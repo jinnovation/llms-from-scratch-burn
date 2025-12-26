@@ -14,6 +14,8 @@ use crate::Listing;
 
 pub struct L2_1;
 
+static THE_VERDICT_URL: &str = "https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/ch02/01_main-chapter-code/the-verdict.txt";
+
 fn tokenize(s: &str) -> Vec<&str> {
     let regex = Regex::new(r#"([,.:;?_!"()\']|--|\s)"#).unwrap();
     let mut result = Vec::new();
@@ -86,9 +88,7 @@ impl Listing for L2_1 {
 
         let path = "/tmp/the-verdict.txt";
 
-        let mut res = client.get(
-            "https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/ch02/01_main-chapter-code/the-verdict.txt",
-        ).send()?.error_for_status()?;
+        let mut res = client.get(THE_VERDICT_URL).send()?.error_for_status()?;
         let mut file = File::create(path)?;
 
         info!(path; "downloaded file");
@@ -197,14 +197,13 @@ mod tests {
     };
 
     use crate::listings::ch02::{
-        Corpus, SimpleTokenizerV1, SimpleTokenizerV2, Tokenizer, construct_vocab_from_url, tokenize,
+        Corpus, SimpleTokenizerV1, SimpleTokenizerV2, THE_VERDICT_URL, Tokenizer,
+        construct_vocab_from_url, tokenize,
     };
 
     #[test]
     fn test_simple_tokenizer_v2_special_tokens() {
-        let tokenizer = SimpleTokenizerV2::new(Corpus::Url(
-            "https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/ch02/01_main-chapter-code/the-verdict.txt".to_string(),
-        ));
+        let tokenizer = SimpleTokenizerV2::new(Corpus::Url(THE_VERDICT_URL.to_string()));
 
         assert_eq!(tokenizer.str_to_int["younger"], 1127);
         assert_eq!(tokenizer.str_to_int["your"], 1128);
@@ -215,9 +214,7 @@ mod tests {
 
     #[test]
     fn test_simple_tokenizer_v2_roundtrip() {
-        let tokenizer = SimpleTokenizerV2::new(Corpus::Url(
-            "https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/ch02/01_main-chapter-code/the-verdict.txt".to_string(),
-        ));
+        let tokenizer = SimpleTokenizerV2::new(Corpus::Url(THE_VERDICT_URL.to_string()));
 
         let input = "Hello, do you like tea? <|endoftext|> In the sunlit terraces of the palace.";
 
@@ -240,10 +237,9 @@ mod tests {
 
     #[test]
     fn test_simple_tokenizer_v1_tokenize() {
-        let tokenizer = SimpleTokenizerV1::new(construct_vocab_from_url(
-            "https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/ch02/01_main-chapter-code/the-verdict.txt".to_string(),
-            None,
-        ).unwrap());
+        let tokenizer = SimpleTokenizerV1::new(
+            construct_vocab_from_url(THE_VERDICT_URL.to_string(), None).unwrap(),
+        );
 
         let input =
             "\"It's the last he painted, you know,\" Mrs. Gisburn said with pardonable pride.";
@@ -277,9 +273,12 @@ mod tests {
 
         let path = "/tmp/the-verdict.txt";
 
-        let mut res = client.get(
-            "https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/ch02/01_main-chapter-code/the-verdict.txt",
-        ).send().unwrap().error_for_status().unwrap();
+        let mut res = client
+            .get(THE_VERDICT_URL)
+            .send()
+            .unwrap()
+            .error_for_status()
+            .unwrap();
         let mut file = File::create(path).unwrap();
 
         io::copy(&mut res, &mut file).unwrap();
@@ -299,9 +298,10 @@ mod tests {
     #[test]
     fn test_construct_vocab() {
         let vocab = construct_vocab_from_url(
-            "https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/ch02/01_main-chapter-code/the-verdict.txt".to_string(),
+            THE_VERDICT_URL.to_string(),
             vec!["<|endoftext|>".to_string(), "<|unk|>".to_string()].into(),
-        ).unwrap();
+        )
+        .unwrap();
 
         assert_eq!(vocab.len(), 1132);
 
