@@ -3604,6 +3604,7 @@ dependencies = [
  "log",
  "regex",
  "reqwest",
+ "tempfile",
 ]
 
 [[package]]

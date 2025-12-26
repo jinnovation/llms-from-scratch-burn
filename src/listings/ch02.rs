@@ -7,6 +7,7 @@ use std::{
 
 use log::info;
 use regex::Regex;
+use tempfile::NamedTempFile;
 
 use crate::Listing;
 
@@ -57,6 +58,21 @@ fn construct_vocab(corpus: &String) -> HashMap<String, usize> {
     )
 }
 
+fn construct_vocab_from_url(corpus_url: String) -> Result<HashMap<String, usize>, Box<dyn Error>> {
+    let client = reqwest::blocking::Client::new();
+
+    let mut res = client.get(corpus_url).send()?.error_for_status()?;
+
+    let mut file = NamedTempFile::new()?;
+
+    io::copy(&mut res, &mut file)?;
+
+    let opened = fs::read_to_string(file.path())?;
+    info!(count = opened.chars().count(), excerpt:? = opened[0..99]; "file details");
+
+    Ok(construct_vocab(&opened))
+}
+
 impl Listing for L2_1 {
     fn main(&self) -> Result<(), Box<dyn Error>> {
         let client = reqwest::blocking::Client::new();
@@ -83,6 +99,43 @@ impl Listing for L2_1 {
     }
 }
 
+trait Tokenizer {
+    fn encode(&self, text: String) -> Vec<usize>;
+    fn decode(&self, ids: Vec<usize>) -> String;
+}
+
+struct SimpleTokenizerV1 {
+    str_to_int: HashMap<String, usize>,
+    int_to_str: HashMap<usize, String>,
+}
+
+impl SimpleTokenizerV1 {
+    fn new(vocab: HashMap<String, usize>) -> Self {
+        SimpleTokenizerV1 {
+            str_to_int: vocab.clone(),
+            int_to_str: vocab.iter().map(|(k, v)| (*v, k.clone())).collect(),
+        }
+    }
+}
+
+impl Tokenizer for SimpleTokenizerV1 {
+    fn encode(&self, text: String) -> Vec<usize> {
+        tokenize(&text)
+            .iter()
+            .map(|token| self.str_to_int[*token])
+            .collect()
+    }
+
+    fn decode(&self, ids: Vec<usize>) -> String {
+        let tokens: Vec<String> = ids.iter().map(|id| self.int_to_str[id].clone()).collect();
+        let joined = tokens.join(" ");
+        let regex = Regex::new(r#"\s+([,.?!"()'])"#).unwrap();
+        let replaced = regex.replace_all(&joined, "$1").to_string();
+
+        replaced
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -90,7 +143,34 @@ mod tests {
         io,
     };
 
-    use crate::listings::ch02::{construct_vocab, tokenize};
+    use crate::listings::ch02::{
+        SimpleTokenizerV1, Tokenizer, construct_vocab, construct_vocab_from_url, tokenize,
+    };
+
+    #[test]
+    fn test_simple_tokenizer_tokenize() {
+        let tokenizer = SimpleTokenizerV1::new(construct_vocab_from_url(
+            "https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/ch02/01_main-chapter-code/the-verdict.txt".to_string(),
+        ).unwrap());
+
+        let input =
+            "\"It's the last he painted, you know,\" Mrs. Gisburn said with pardonable pride.";
+
+        let ids = tokenizer.encode(input.to_string());
+
+        assert_eq!(
+            ids,
+            [
+                1, 56, 2, 850, 988, 602, 533, 746, 5, 1126, 596, 5, 1, 67, 7, 38, 851, 1108, 754,
+                793, 7,
+            ],
+        );
+
+        assert_eq!(
+            tokenizer.decode(ids),
+            "\" It' s the last he painted, you know,\" Mrs. Gisburn said with pardonable pride."
+        );
+    }
 
     #[test]
     fn test_tokenize() {
