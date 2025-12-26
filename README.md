@@ -7,3 +7,10 @@ Rust using [Burn](https://burn.dev/).
 > [!TIP]
 > See also: [`nerdai/llms-from-scratch-rs`](https://github.com/nerdai/llms-from-scratch-rs), which
 > does this exercise using [Candle](https://github.com/huggingface/candle) instead of Burn.
+
+# Getting Started
+
+```
+$ git clone https://github.com/jinnovation/llms-from-scratch-burn
+$ cargo run listing 2.1
+```
