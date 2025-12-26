@@ -80,19 +80,23 @@ fn construct_vocab(corpus: &str, additional_tokens: Option<Vec<String>>) -> Hash
     )
 }
 
-fn construct_vocab_from_url(
-    corpus_url: String,
-    additional_tokens: Option<Vec<String>>,
-) -> Result<HashMap<String, usize>, Box<dyn Error>> {
+fn text_from_url(url: String) -> Result<String, Box<dyn Error>> {
     let client = reqwest::blocking::Client::new();
 
-    let mut res = client.get(corpus_url).send()?.error_for_status()?;
+    let mut res = client.get(url).send()?.error_for_status()?;
 
     let mut file = NamedTempFile::new()?;
 
     io::copy(&mut res, &mut file)?;
 
-    let opened = fs::read_to_string(file.path())?;
+    Ok(fs::read_to_string(file.path())?)
+}
+
+fn construct_vocab_from_url(
+    corpus_url: String,
+    additional_tokens: Option<Vec<String>>,
+) -> Result<HashMap<String, usize>, Box<dyn Error>> {
+    let opened = text_from_url(corpus_url)?;
     info!(count = opened.chars().count(), excerpt:? = opened[0..99]; "file details");
 
     Ok(construct_vocab(&opened, additional_tokens))
@@ -222,7 +226,7 @@ mod tests {
 
     use crate::listings::ch02::{
         Corpus, SimpleTokenizerV1, SimpleTokenizerV2, THE_VERDICT_URL, Tokenizer,
-        construct_vocab_from_url, tokenize,
+        construct_vocab_from_url, text_from_url, tokenize,
     };
 
     #[test]
@@ -365,6 +369,21 @@ mod tests {
         assert_eq!(
             tokenizer.decode(integers).unwrap(),
             "Hello, do you like tea? <|endoftext|> In the sunlit terraces of someunknownPlace."
-        )
+        );
+
+        let enc_text = tokenizer
+            .encode(
+                text_from_url(THE_VERDICT_URL.to_string()).unwrap().as_str(),
+                &HashSet::new(),
+            )
+            .0;
+
+        assert_eq!(enc_text.len(), 5145);
+
+        let enc_sample = &enc_text[50..];
+
+        let context_size = 4;
+        assert_eq!(enc_sample[0..context_size], [290, 4920, 2241, 287]);
+        assert_eq!(enc_sample[1..context_size + 1], [4920, 2241, 287, 257]);
     }
 }
