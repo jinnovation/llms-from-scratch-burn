@@ -14,6 +14,22 @@ use crate::Listing;
 
 pub struct L2_1;
 
+pub struct E2_1;
+
+impl Listing for E2_1 {
+    fn main(&self) -> Result<(), Box<dyn Error>> {
+        let input = "Akwirw ier";
+        let tokenizer = tiktoken_rs::get_bpe_from_model("gpt2").unwrap();
+        let allowed_special: HashSet<&str> = HashSet::new();
+        let encoded = tokenizer.encode(input, &allowed_special).0;
+        let decoded = tokenizer.decode(encoded)?;
+
+        info!(decoded:?, input:?, equal = decoded==input; "round-tripped");
+
+        Ok(())
+    }
+}
+
 static THE_VERDICT_URL: &str = "https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/ch02/01_main-chapter-code/the-verdict.txt";
 
 fn tokenize(s: &str) -> Vec<&str> {

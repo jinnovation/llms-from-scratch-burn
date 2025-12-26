@@ -1,13 +1,22 @@
 use std::{collections::HashMap, error::Error, sync::LazyLock};
 
 use clap::{Parser, Subcommand};
-use llms_from_scratch_burn::{Listing, listings::ch02::L2_1};
+use llms_from_scratch_burn::{
+    Listing,
+    listings::ch02::{E2_1, L2_1},
+};
 use log::info;
 
 static LISTINGS: LazyLock<HashMap<&str, Box<dyn Listing>>> = LazyLock::new(|| {
     let mut listings: HashMap<&str, Box<dyn Listing>> = HashMap::new();
     listings.insert("2.1", Box::new(L2_1));
     listings
+});
+
+static EXERCISES: LazyLock<HashMap<&str, Box<dyn Listing>>> = LazyLock::new(|| {
+    let mut exercises: HashMap<&str, Box<dyn Listing>> = HashMap::new();
+    exercises.insert("2.1", Box::new(E2_1));
+    exercises
 });
 
 #[derive(Debug, Parser)]
@@ -46,7 +55,9 @@ fn main() -> Result<(), Box<dyn Error>> {
             println!("example: {:?}", id);
         }
         Commands::Exercise { id } => {
-            println!("exercise: {:?}", id);
+            info!(id = id.as_str(); "Running exercise");
+
+            EXERCISES.get(id.as_str()).unwrap().main()?;
         }
         Commands::Listing { id } => {
             info!(id = id.as_str(); "Running listing");
