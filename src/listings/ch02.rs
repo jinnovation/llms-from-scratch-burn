@@ -143,9 +143,7 @@ mod tests {
         io,
     };
 
-    use crate::listings::ch02::{
-        SimpleTokenizerV1, Tokenizer, construct_vocab, construct_vocab_from_url, tokenize,
-    };
+    use crate::listings::ch02::{SimpleTokenizerV1, Tokenizer, construct_vocab_from_url, tokenize};
 
     #[test]
     fn test_simple_tokenizer_tokenize() {
@@ -206,20 +204,9 @@ mod tests {
 
     #[test]
     fn test_construct_vocab() {
-        let client = reqwest::blocking::Client::new();
-
-        let path = "/tmp/the-verdict.txt";
-
-        let mut res = client.get(
-            "https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/ch02/01_main-chapter-code/the-verdict.txt",
-        ).send().unwrap().error_for_status().unwrap();
-        let mut file = File::create(path).unwrap();
-
-        io::copy(&mut res, &mut file).unwrap();
-
-        let opened = fs::read_to_string(path).unwrap();
-
-        let vocab = construct_vocab(&opened);
+        let vocab = construct_vocab_from_url(
+            "https://raw.githubusercontent.com/rasbt/LLMs-from-scratch/main/ch02/01_main-chapter-code/the-verdict.txt".to_string(),
+        ).unwrap();
 
         assert_eq!(vocab.len(), 1130);
 
@@ -228,5 +215,9 @@ mod tests {
         assert_eq!(vocab["'"], 2);
         assert_eq!(vocab["Her"], 49);
         assert_eq!(vocab["Hermia"], 50);
+
+        assert_eq!(vocab["younger"], 1127);
+        assert_eq!(vocab["your"], 1128);
+        assert_eq!(vocab["yourself"], 1129);
     }
 }
