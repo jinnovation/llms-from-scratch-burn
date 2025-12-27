@@ -6,6 +6,7 @@ use std::{
     io,
 };
 
+use burn::data::dataset::Dataset;
 use log::info;
 use regex::Regex;
 use tempfile::NamedTempFile;
@@ -213,6 +214,51 @@ impl Tokenizer for SimpleTokenizerV2 {
         let regex = Regex::new(r#"\s+([,.?!"()'])"#).unwrap();
 
         regex.replace_all(&joined, "$1").to_string()
+    }
+}
+
+struct GPTDatasetV1 {
+    input_ids: Vec<Vec<usize>>,
+    target_ids: Vec<Vec<usize>>,
+}
+
+impl GPTDatasetV1 {
+    fn new_from_text(
+        txt: String,
+        tokenizer: Box<dyn Tokenizer>,
+        max_length: usize,
+        stride: usize,
+    ) -> Self {
+        let token_ids = tokenizer.encode(txt);
+
+        let mut input_ids: Vec<Vec<usize>> = Vec::new();
+        let mut target_ids: Vec<Vec<usize>> = Vec::new();
+
+        for i in (0..token_ids.len() - max_length).step_by(stride) {
+            let input_chunk = &token_ids[i..i + max_length];
+            let target_chunk = &token_ids[i + 1..=(i + max_length)];
+
+            input_ids.push(input_chunk.to_vec());
+            target_ids.push(target_chunk.to_vec());
+        }
+
+        Self {
+            input_ids,
+            target_ids,
+        }
+    }
+}
+
+impl Dataset<(Vec<usize>, Vec<usize>)> for GPTDatasetV1 {
+    fn get(&self, index: usize) -> Option<(Vec<usize>, Vec<usize>)> {
+        Some((
+            self.input_ids[index].clone(),
+            self.target_ids[index].clone(),
+        ))
+    }
+
+    fn len(&self) -> usize {
+        self.input_ids.len()
     }
 }
 
