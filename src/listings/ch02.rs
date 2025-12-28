@@ -233,8 +233,8 @@ struct GPTDatasetItem {
 
 #[derive(Clone, Debug)]
 struct GPTDatasetBatch<B: Backend> {
-    input_ids: Tensor<B, 4, Int>,
-    target_ids: Tensor<B, 4, Int>,
+    input_ids: Tensor<B, 2, Int>,
+    target_ids: Tensor<B, 2, Int>,
 }
 
 #[derive(Clone, Debug)]
@@ -246,16 +246,18 @@ impl<B: Backend> Batcher<B, GPTDatasetItem, GPTDatasetBatch<B>> for GPTDatasetBa
         items: Vec<GPTDatasetItem>,
         device: &<B as Backend>::Device,
     ) -> GPTDatasetBatch<B> {
-        let input_tensors: Vec<Tensor<B, 4, Int>> = items
+        let input_tensors: Vec<Tensor<B, 2, Int>> = items
             .iter()
             .map(|item| TensorData::from(item.input_ids).convert::<B::IntElem>())
-            .map(|data| Tensor::<B, 4, Int>::from_data(data, device))
+            .map(|data| Tensor::<B, 1, Int>::from_data(data, device))
+            .map(|tensor| tensor.reshape([1, 4]))
             .collect();
 
-        let target_tensors: Vec<Tensor<B, 4, Int>> = items
+        let target_tensors: Vec<Tensor<B, 2, Int>> = items
             .iter()
             .map(|item| TensorData::from(item.target_ids).convert::<B::IntElem>())
-            .map(|data| Tensor::<B, 4, Int>::from_data(data, device))
+            .map(|data| Tensor::<B, 1, Int>::from_data(data, device))
+            .map(|tensor| tensor.reshape([1, 4]))
             .collect();
 
         let input_ids = Tensor::cat(input_tensors, 0);
@@ -373,9 +375,11 @@ mod tests {
     use burn::data::dataset::Dataset;
 
     use crate::listings::ch02::{
-        Corpus, NewGPTDatasetV1, SimpleTokenizerV1, SimpleTokenizerV2, THE_VERDICT_URL, Tokenizer,
-        construct_vocab_from_url, text_from_url, tokenize,
+        Corpus, GPTDatasetBatcher, NewGPTDatasetV1, SimpleTokenizerV1, SimpleTokenizerV2,
+        THE_VERDICT_URL, Tokenizer, construct_vocab_from_url, text_from_url, tokenize,
     };
+
+    use burn::data::dataloader::DataLoaderBuilder;
 
     #[test]
     fn test_simple_tokenizer_v2_special_tokens() {
@@ -537,6 +541,11 @@ mod tests {
 
     #[test]
     fn test_gpt_v1_dataset() {
+        // ref: https://github.com/tracel-ai/burn/blob/439a26c0ff35c8557e0105786e7ce0d2b74c2c4b/examples/custom-image-dataset/examples/custom-image-dataset.rs
+        use burn::backend::NdArray;
+
+        type Backend = NdArray;
+
         let dataset = NewGPTDatasetV1::new_from_text(
             text_from_url(THE_VERDICT_URL.to_string()).unwrap(),
             Box::new(SimpleTokenizerV2::new(Corpus::Url(
@@ -553,17 +562,22 @@ mod tests {
 
         assert_eq!(item.input_ids.to_vec(), enc_text[0..4]);
 
-        // let dataloader = DataLoaderBuilder::new(GPTDatasetBatcher {})
-        //     .batch_size(4)
-        //     .shuffle(0)
-        //     .num_workers(0)
-        //     .build(NewGPTDatasetV1::new_from_text(
-        //         text_from_url(THE_VERDICT_URL.to_string()).unwrap(),
-        //         Box::new(SimpleTokenizerV2::new(Corpus::Url(
-        //             THE_VERDICT_URL.to_string(),
-        //         ))),
-        //         4,
-        //         1,
-        //     ));
+        let dataloader = DataLoaderBuilder::<Backend, _, _>::new(GPTDatasetBatcher {})
+            .batch_size(4)
+            .shuffle(0)
+            .num_workers(0)
+            .build(NewGPTDatasetV1::new_from_text(
+                text_from_url(THE_VERDICT_URL.to_string()).unwrap(),
+                Box::new(SimpleTokenizerV2::new(Corpus::Url(
+                    THE_VERDICT_URL.to_string(),
+                ))),
+                4,
+                1,
+            ));
+
+        let batch = dataloader.iter().next().unwrap();
+
+        assert_eq!(batch.input_ids.shape().dims, [4, 4]);
+        assert_eq!(batch.target_ids.shape().dims, [4, 4]);
     }
 }
