@@ -6,7 +6,15 @@ use std::{
     io,
 };
 
-use burn::data::dataset::Dataset;
+use burn::{
+    Tensor,
+    data::{
+        dataloader::batcher::Batcher,
+        dataset::{Dataset, InMemDataset},
+    },
+    prelude::Backend,
+    tensor::{Int, TensorData},
+};
 use log::info;
 use regex::Regex;
 use tempfile::NamedTempFile;
@@ -217,6 +225,98 @@ impl Tokenizer for SimpleTokenizerV2 {
     }
 }
 
+#[derive(Clone, Debug)]
+struct GPTDatasetItem {
+    input_ids: [usize; 4],
+    target_ids: [usize; 4],
+}
+
+#[derive(Clone, Debug)]
+struct GPTDatasetBatch<B: Backend> {
+    input_ids: Tensor<B, 4, Int>,
+    target_ids: Tensor<B, 4, Int>,
+}
+
+#[derive(Clone, Debug)]
+struct GPTDatasetBatcher {}
+
+impl<B: Backend> Batcher<B, GPTDatasetItem, GPTDatasetBatch<B>> for GPTDatasetBatcher {
+    fn batch(
+        &self,
+        items: Vec<GPTDatasetItem>,
+        device: &<B as Backend>::Device,
+    ) -> GPTDatasetBatch<B> {
+        let input_tensors: Vec<Tensor<B, 4, Int>> = items
+            .iter()
+            .map(|item| TensorData::from(item.input_ids).convert::<B::IntElem>())
+            .map(|data| Tensor::<B, 4, Int>::from_data(data, device))
+            .collect();
+
+        let target_tensors: Vec<Tensor<B, 4, Int>> = items
+            .iter()
+            .map(|item| TensorData::from(item.target_ids).convert::<B::IntElem>())
+            .map(|data| Tensor::<B, 4, Int>::from_data(data, device))
+            .collect();
+
+        let input_ids = Tensor::cat(input_tensors, 0);
+        let target_ids = Tensor::cat(target_tensors, 0);
+
+        GPTDatasetBatch {
+            input_ids,
+            target_ids,
+        }
+    }
+}
+
+struct NewGPTDatasetV1 {
+    dataset: InMemDataset<GPTDatasetItem>,
+}
+
+impl Dataset<GPTDatasetItem> for NewGPTDatasetV1 {
+    fn get(&self, index: usize) -> Option<GPTDatasetItem> {
+        self.dataset.get(index)
+    }
+
+    fn len(&self) -> usize {
+        self.dataset.len()
+    }
+}
+
+impl NewGPTDatasetV1 {
+    fn new_from_text(
+        txt: String,
+        tokenizer: Box<dyn Tokenizer>,
+        max_length: usize,
+        stride: usize,
+    ) -> Self {
+        let token_ids = tokenizer.encode(txt);
+
+        let mut input_ids: Vec<Vec<usize>> = Vec::new();
+        let mut target_ids: Vec<Vec<usize>> = Vec::new();
+
+        for i in (0..token_ids.len() - max_length).step_by(stride) {
+            let input_chunk = &token_ids[i..i + max_length];
+            let target_chunk = &token_ids[i + 1..=(i + max_length)];
+
+            input_ids.push(input_chunk.to_vec());
+            target_ids.push(target_chunk.to_vec());
+        }
+
+        let zipped: Vec<_> = input_ids
+            .into_iter()
+            .zip(target_ids)
+            .map(|(input_ids, target_ids)| GPTDatasetItem {
+                input_ids: input_ids.try_into().unwrap(),
+                target_ids: target_ids.try_into().unwrap(),
+            })
+            .collect();
+
+        Self {
+            dataset: InMemDataset::new(zipped),
+        }
+    }
+}
+
 struct GPTDatasetV1 {
     input_ids: Vec<Vec<usize>>,
     target_ids: Vec<Vec<usize>>,
@@ -270,8 +370,10 @@ mod tests {
         io,
     };
 
+    use burn::data::dataset::Dataset;
+
     use crate::listings::ch02::{
-        Corpus, SimpleTokenizerV1, SimpleTokenizerV2, THE_VERDICT_URL, Tokenizer,
+        Corpus, NewGPTDatasetV1, SimpleTokenizerV1, SimpleTokenizerV2, THE_VERDICT_URL, Tokenizer,
         construct_vocab_from_url, text_from_url, tokenize,
     };
 
@@ -431,5 +533,37 @@ mod tests {
         let context_size = 4;
         assert_eq!(enc_sample[0..context_size], [290, 4920, 2241, 287]);
         assert_eq!(enc_sample[1..context_size + 1], [4920, 2241, 287, 257]);
+    }
+
+    #[test]
+    fn test_gpt_v1_dataset() {
+        let dataset = NewGPTDatasetV1::new_from_text(
+            text_from_url(THE_VERDICT_URL.to_string()).unwrap(),
+            Box::new(SimpleTokenizerV2::new(Corpus::Url(
+                THE_VERDICT_URL.to_string(),
+            ))),
+            4,
+            1,
+        );
+
+        let item = dataset.get(0).unwrap();
+
+        let enc_text = SimpleTokenizerV2::new(Corpus::Url(THE_VERDICT_URL.to_string()))
+            .encode(text_from_url(THE_VERDICT_URL.to_string()).unwrap());
+
+        assert_eq!(item.input_ids.to_vec(), enc_text[0..4]);
+
+        // let dataloader = DataLoaderBuilder::new(GPTDatasetBatcher {})
+        //     .batch_size(4)
+        //     .shuffle(0)
+        //     .num_workers(0)
+        //     .build(NewGPTDatasetV1::new_from_text(
+        //         text_from_url(THE_VERDICT_URL.to_string()).unwrap(),
+        //         Box::new(SimpleTokenizerV2::new(Corpus::Url(
+        //             THE_VERDICT_URL.to_string(),
+        //         ))),
+        //         4,
+        //         1,
+        //     ));
     }
 }
