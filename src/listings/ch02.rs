@@ -270,11 +270,11 @@ impl<B: Backend> Batcher<B, GPTDatasetItem, GPTDatasetBatch<B>> for GPTDatasetBa
     }
 }
 
-struct NewGPTDatasetV1 {
+struct GPTDatasetV1 {
     dataset: InMemDataset<GPTDatasetItem>,
 }
 
-impl Dataset<GPTDatasetItem> for NewGPTDatasetV1 {
+impl Dataset<GPTDatasetItem> for GPTDatasetV1 {
     fn get(&self, index: usize) -> Option<GPTDatasetItem> {
         self.dataset.get(index)
     }
@@ -284,7 +284,7 @@ impl Dataset<GPTDatasetItem> for NewGPTDatasetV1 {
     }
 }
 
-impl NewGPTDatasetV1 {
+impl GPTDatasetV1 {
     fn new_from_text(
         txt: String,
         tokenizer: Box<dyn Tokenizer>,
@@ -319,51 +319,6 @@ impl NewGPTDatasetV1 {
     }
 }
 
-struct GPTDatasetV1 {
-    input_ids: Vec<Vec<usize>>,
-    target_ids: Vec<Vec<usize>>,
-}
-
-impl GPTDatasetV1 {
-    fn new_from_text(
-        txt: String,
-        tokenizer: Box<dyn Tokenizer>,
-        max_length: usize,
-        stride: usize,
-    ) -> Self {
-        let token_ids = tokenizer.encode(txt);
-
-        let mut input_ids: Vec<Vec<usize>> = Vec::new();
-        let mut target_ids: Vec<Vec<usize>> = Vec::new();
-
-        for i in (0..token_ids.len() - max_length).step_by(stride) {
-            let input_chunk = &token_ids[i..i + max_length];
-            let target_chunk = &token_ids[i + 1..=(i + max_length)];
-
-            input_ids.push(input_chunk.to_vec());
-            target_ids.push(target_chunk.to_vec());
-        }
-
-        Self {
-            input_ids,
-            target_ids,
-        }
-    }
-}
-
-impl Dataset<(Vec<usize>, Vec<usize>)> for GPTDatasetV1 {
-    fn get(&self, index: usize) -> Option<(Vec<usize>, Vec<usize>)> {
-        Some((
-            self.input_ids[index].clone(),
-            self.target_ids[index].clone(),
-        ))
-    }
-
-    fn len(&self) -> usize {
-        self.input_ids.len()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::{
@@ -375,7 +330,7 @@ mod tests {
     use burn::data::dataset::Dataset;
 
     use crate::listings::ch02::{
-        Corpus, GPTDatasetBatcher, NewGPTDatasetV1, SimpleTokenizerV1, SimpleTokenizerV2,
+        Corpus, GPTDatasetBatcher, GPTDatasetV1, SimpleTokenizerV1, SimpleTokenizerV2,
         THE_VERDICT_URL, Tokenizer, construct_vocab_from_url, text_from_url, tokenize,
     };
 
@@ -546,7 +501,7 @@ mod tests {
 
         type Backend = NdArray;
 
-        let dataset = NewGPTDatasetV1::new_from_text(
+        let dataset = GPTDatasetV1::new_from_text(
             text_from_url(THE_VERDICT_URL.to_string()).unwrap(),
             Box::new(SimpleTokenizerV2::new(Corpus::Url(
                 THE_VERDICT_URL.to_string(),
@@ -564,9 +519,9 @@ mod tests {
 
         let dataloader = DataLoaderBuilder::<Backend, _, _>::new(GPTDatasetBatcher {})
             .batch_size(4)
-            .shuffle(0)
+            // .shuffle(0)
             .num_workers(0)
-            .build(NewGPTDatasetV1::new_from_text(
+            .build(GPTDatasetV1::new_from_text(
                 text_from_url(THE_VERDICT_URL.to_string()).unwrap(),
                 Box::new(SimpleTokenizerV2::new(Corpus::Url(
                     THE_VERDICT_URL.to_string(),
@@ -576,6 +531,9 @@ mod tests {
             ));
 
         let batch = dataloader.iter().next().unwrap();
+
+        println!("{:?}", batch);
+        println!("{:?}", item.input_ids.to_vec());
 
         assert_eq!(batch.input_ids.shape().dims, [4, 4]);
         assert_eq!(batch.target_ids.shape().dims, [4, 4]);
