@@ -503,15 +503,16 @@ mod tests {
 
     // NB(@jinnovation): See: https://github.com/la10736/rstest/issues/300
     #[rstest]
-    #[case(MaxLength::<4>::default())]
-    #[case(MaxLength::<6>::default())]
-    fn test_gpt_v1_dataset<const N: usize>(#[case] _max_length: MaxLength<N>) {
+    #[case(4, MaxLength::<4>::default())]
+    #[case(6, MaxLength::<6>::default())]
+    fn test_gpt_v1_dataset<const N: usize>(
+        #[case] batch_size: usize,
+        #[case] _max_length: MaxLength<N>,
+    ) {
         // ref: https://github.com/tracel-ai/burn/blob/439a26c0ff35c8557e0105786e7ce0d2b74c2c4b/examples/custom-image-dataset/examples/custom-image-dataset.rs
         use burn::backend::NdArray;
 
         type Backend = NdArray;
-
-        let batch_size = 4;
 
         let dataset = GPTDatasetV1::<N>::new_from_text(
             text_from_url(THE_VERDICT_URL.to_string()).unwrap(),
