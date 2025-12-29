@@ -521,19 +521,9 @@ mod tests {
             .batch_size(4)
             // .shuffle(0)
             .num_workers(0)
-            .build(GPTDatasetV1::new_from_text(
-                text_from_url(THE_VERDICT_URL.to_string()).unwrap(),
-                Box::new(SimpleTokenizerV2::new(Corpus::Url(
-                    THE_VERDICT_URL.to_string(),
-                ))),
-                4,
-                1,
-            ));
+            .build(dataset);
 
         let batch = dataloader.iter().next().unwrap();
-
-        println!("{:?}", batch);
-        println!("{:?}", item.input_ids.to_vec());
 
         assert_eq!(batch.input_ids.shape().dims, [4, 4]);
         assert_eq!(batch.target_ids.shape().dims, [4, 4]);
