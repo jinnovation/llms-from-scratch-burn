@@ -501,12 +501,16 @@ mod tests {
 
         type Backend = NdArray;
 
+        // FIXME: doesn't work for max_length != 4
+        let max_length = 4;
+        let batch_size = 4;
+
         let dataset = GPTDatasetV1::new_from_text(
             text_from_url(THE_VERDICT_URL.to_string()).unwrap(),
             Box::new(SimpleTokenizerV2::new(Corpus::Url(
                 THE_VERDICT_URL.to_string(),
             ))),
-            4,
+            max_length,
             1,
         );
 
@@ -518,14 +522,14 @@ mod tests {
         assert_eq!(item.input_ids.to_vec(), enc_text[0..4]);
 
         let dataloader = DataLoaderBuilder::<Backend, _, _>::new(GPTDatasetBatcher {})
-            .batch_size(4)
+            .batch_size(batch_size)
             // .shuffle(0)
             .num_workers(0)
             .build(dataset);
 
         let batch = dataloader.iter().next().unwrap();
 
-        assert_eq!(batch.input_ids.shape().dims, [4, 4]);
-        assert_eq!(batch.target_ids.shape().dims, [4, 4]);
+        assert_eq!(batch.input_ids.shape().dims, [batch_size, max_length]);
+        assert_eq!(batch.target_ids.shape().dims, [batch_size, max_length]);
     }
 }
