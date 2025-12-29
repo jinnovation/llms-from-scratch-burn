@@ -10,5 +10,6 @@ env_logger = { version = "0.11.8", features = ["kv"] }
 log = { version = "0.4.29", features = ["kv"] }
 regex = "1.12.2"
 reqwest = { version = "0.12.28", features = ["json", "blocking"] }
+rstest = "0.26.1"
 tempfile = "3.24.0"
 tiktoken-rs = "0.9.1"

@@ -226,9 +226,9 @@ impl Tokenizer for SimpleTokenizerV2 {
 }
 
 #[derive(Clone, Debug)]
-struct GPTDatasetItem {
-    input_ids: [usize; 4],
-    target_ids: [usize; 4],
+struct GPTDatasetItem<const N: usize> {
+    input_ids: [usize; N],
+    target_ids: [usize; N],
 }
 
 #[derive(Clone, Debug)]
@@ -240,24 +240,26 @@ struct GPTDatasetBatch<B: Backend> {
 #[derive(Clone, Debug)]
 struct GPTDatasetBatcher {}
 
-impl<B: Backend> Batcher<B, GPTDatasetItem, GPTDatasetBatch<B>> for GPTDatasetBatcher {
+impl<B: Backend, const N: usize> Batcher<B, GPTDatasetItem<N>, GPTDatasetBatch<B>>
+    for GPTDatasetBatcher
+{
     fn batch(
         &self,
-        items: Vec<GPTDatasetItem>,
+        items: Vec<GPTDatasetItem<N>>,
         device: &<B as Backend>::Device,
     ) -> GPTDatasetBatch<B> {
         let input_tensors: Vec<Tensor<B, 2, Int>> = items
             .iter()
             .map(|item| TensorData::from(item.input_ids).convert::<B::IntElem>())
             .map(|data| Tensor::<B, 1, Int>::from_data(data, device))
-            .map(|tensor| tensor.reshape([1, 4]))
+            .map(|tensor| tensor.reshape([1, N]))
             .collect();
 
         let target_tensors: Vec<Tensor<B, 2, Int>> = items
             .iter()
             .map(|item| TensorData::from(item.target_ids).convert::<B::IntElem>())
             .map(|data| Tensor::<B, 1, Int>::from_data(data, device))
-            .map(|tensor| tensor.reshape([1, 4]))
+            .map(|tensor| tensor.reshape([1, N]))
             .collect();
 
         let input_ids = Tensor::cat(input_tensors, 0);
@@ -270,12 +272,12 @@ impl<B: Backend> Batcher<B, GPTDatasetItem, GPTDatasetBatch<B>> for GPTDatasetBa
     }
 }
 
-struct GPTDatasetV1 {
-    dataset: InMemDataset<GPTDatasetItem>,
+struct GPTDatasetV1<const N: usize> {
+    dataset: InMemDataset<GPTDatasetItem<N>>,
 }
 
-impl Dataset<GPTDatasetItem> for GPTDatasetV1 {
-    fn get(&self, index: usize) -> Option<GPTDatasetItem> {
+impl<const N: usize> Dataset<GPTDatasetItem<N>> for GPTDatasetV1<N> {
+    fn get(&self, index: usize) -> Option<GPTDatasetItem<N>> {
         self.dataset.get(index)
     }
 
@@ -284,7 +286,7 @@ impl Dataset<GPTDatasetItem> for GPTDatasetV1 {
     }
 }
 
-impl GPTDatasetV1 {
+impl<const N: usize> GPTDatasetV1<N> {
     fn new_from_text(
         txt: String,
         tokenizer: Box<dyn Tokenizer>,
@@ -325,6 +327,7 @@ mod tests {
         collections::HashSet,
         fs::{self, File},
         io,
+        marker::PhantomData,
     };
 
     use burn::data::dataset::Dataset;
@@ -335,6 +338,8 @@ mod tests {
     };
 
     use burn::data::dataloader::DataLoaderBuilder;
+
+    use rstest::rstest;
 
     #[test]
     fn test_simple_tokenizer_v2_special_tokens() {
@@ -494,23 +499,26 @@ mod tests {
         assert_eq!(enc_sample[1..context_size + 1], [4920, 2241, 287, 257]);
     }
 
-    #[test]
-    fn test_gpt_v1_dataset() {
+    type MaxLength<const N: usize> = PhantomData<GPTDatasetV1<N>>;
+
+    // NB(@jinnovation): See: https://github.com/la10736/rstest/issues/300
+    #[rstest]
+    #[case(MaxLength::<4>::default())]
+    #[case(MaxLength::<6>::default())]
+    fn test_gpt_v1_dataset<const N: usize>(#[case] _max_length: MaxLength<N>) {
         // ref: https://github.com/tracel-ai/burn/blob/439a26c0ff35c8557e0105786e7ce0d2b74c2c4b/examples/custom-image-dataset/examples/custom-image-dataset.rs
         use burn::backend::NdArray;
 
         type Backend = NdArray;
 
-        // FIXME: doesn't work for max_length != 4
-        let max_length = 4;
         let batch_size = 4;
 
-        let dataset = GPTDatasetV1::new_from_text(
+        let dataset = GPTDatasetV1::<N>::new_from_text(
             text_from_url(THE_VERDICT_URL.to_string()).unwrap(),
             Box::new(SimpleTokenizerV2::new(Corpus::Url(
                 THE_VERDICT_URL.to_string(),
             ))),
-            max_length,
+            N,
             1,
         );
 
@@ -519,7 +527,7 @@ mod tests {
         let enc_text = SimpleTokenizerV2::new(Corpus::Url(THE_VERDICT_URL.to_string()))
             .encode(text_from_url(THE_VERDICT_URL.to_string()).unwrap());
 
-        assert_eq!(item.input_ids.to_vec(), enc_text[0..4]);
+        assert_eq!(item.input_ids.to_vec(), enc_text[0..N]);
 
         let dataloader = DataLoaderBuilder::<Backend, _, _>::new(GPTDatasetBatcher {})
             .batch_size(batch_size)
@@ -529,7 +537,7 @@ mod tests {
 
         let batch = dataloader.iter().next().unwrap();
 
-        assert_eq!(batch.input_ids.shape().dims, [batch_size, max_length]);
-        assert_eq!(batch.target_ids.shape().dims, [batch_size, max_length]);
+        assert_eq!(batch.input_ids.shape().dims, [batch_size, N]);
+        assert_eq!(batch.target_ids.shape().dims, [batch_size, N]);
     }
 }

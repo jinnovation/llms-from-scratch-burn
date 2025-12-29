@@ -3630,6 +3630,7 @@ dependencies = [
  "log",
  "regex",
  "reqwest",
+ "rstest",
  "tempfile",
  "tiktoken-rs",
 ]
