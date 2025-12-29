@@ -331,6 +331,7 @@ mod tests {
     };
 
     use burn::data::dataset::Dataset;
+    use log::info;
 
     use crate::listings::ch02::{
         Corpus, GPTDatasetBatcher, GPTDatasetV1, SimpleTokenizerV1, SimpleTokenizerV2,
@@ -339,7 +340,7 @@ mod tests {
 
     use burn::data::dataloader::DataLoaderBuilder;
 
-    use rstest::rstest;
+    use rstest::{fixture, rstest};
 
     #[test]
     fn test_simple_tokenizer_v2_special_tokens() {
@@ -501,13 +502,21 @@ mod tests {
 
     type MaxLength<const N: usize> = PhantomData<GPTDatasetV1<N>>;
 
-    // NB(@jinnovation): See: https://github.com/la10736/rstest/issues/300
+    #[fixture]
+    #[once]
+    fn init_logger() -> () {
+        env_logger::builder()
+            .filter_level(log::LevelFilter::Info)
+            .init();
+    }
+
     #[rstest]
-    #[case(4, MaxLength::<4>::default())]
-    #[case(6, MaxLength::<6>::default())]
     fn test_gpt_v1_dataset<const N: usize>(
-        #[case] batch_size: usize,
-        #[case] _max_length: MaxLength<N>,
+        #[expect(unused_variables)] init_logger: &(),
+        #[values(4, 6)] batch_size: usize,
+        // NB(@jinnovation): See: https://github.com/la10736/rstest/issues/300
+        #[values(MaxLength::<4>::default(), MaxLength::<6>::default())] _max_length: MaxLength<N>,
+        #[values(1, 2, 3)] stride: usize,
     ) {
         // ref: https://github.com/tracel-ai/burn/blob/439a26c0ff35c8557e0105786e7ce0d2b74c2c4b/examples/custom-image-dataset/examples/custom-image-dataset.rs
         use burn::backend::NdArray;
@@ -520,7 +529,7 @@ mod tests {
                 THE_VERDICT_URL.to_string(),
             ))),
             N,
-            1,
+            stride,
         );
 
         let item = dataset.get(0).unwrap();
@@ -537,6 +546,8 @@ mod tests {
             .build(dataset);
 
         let batch = dataloader.iter().next().unwrap();
+
+        info!(batch:?, stride, _max_length:?; "retrieved batch");
 
         assert_eq!(batch.input_ids.shape().dims, [batch_size, N]);
         assert_eq!(batch.target_ids.shape().dims, [batch_size, N]);
