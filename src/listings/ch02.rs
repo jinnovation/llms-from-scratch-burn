@@ -4,12 +4,13 @@ use std::{
     error::Error,
     fs::{self, File},
     io,
+    sync::Arc,
 };
 
 use burn::{
     Tensor,
     data::{
-        dataloader::batcher::Batcher,
+        dataloader::{DataLoader, DataLoaderBuilder, batcher::Batcher},
         dataset::{Dataset, InMemDataset},
     },
     prelude::Backend,
@@ -19,7 +20,9 @@ use log::info;
 use regex::Regex;
 use tempfile::NamedTempFile;
 
-use crate::Listing;
+use crate::{Listing, listings::ch02::tokenizers::UnsafeBPETokenizer};
+
+pub mod tokenizers;
 
 pub struct L2_1;
 
@@ -176,22 +179,6 @@ struct SimpleTokenizerV2 {
     int_to_str: HashMap<usize, String>,
 }
 
-enum Corpus {
-    Raw(String),
-    Url(String),
-}
-
-impl Corpus {
-    fn to_vocab(&self, additional_tokens: Option<Vec<String>>) -> HashMap<String, usize> {
-        match self {
-            Corpus::Raw(text) => construct_vocab(text, additional_tokens),
-            Corpus::Url(url) => {
-                construct_vocab_from_url(url.to_string(), additional_tokens).unwrap()
-            }
-        }
-    }
-}
-
 impl SimpleTokenizerV2 {
     fn new(corpus: Corpus) -> Self {
         let additional_tokens = vec!["<|endoftext|>".into(), "<|unk|>".into()];
@@ -222,6 +209,22 @@ impl Tokenizer for SimpleTokenizerV2 {
         let regex = Regex::new(r#"\s+([,.?!"()'])"#).unwrap();
 
         regex.replace_all(&joined, "$1").to_string()
+    }
+}
+
+enum Corpus {
+    Raw(String),
+    Url(String),
+}
+
+impl Corpus {
+    fn to_vocab(&self, additional_tokens: Option<Vec<String>>) -> HashMap<String, usize> {
+        match self {
+            Corpus::Raw(text) => construct_vocab(text, additional_tokens),
+            Corpus::Url(url) => {
+                construct_vocab_from_url(url.to_string(), additional_tokens).unwrap()
+            }
+        }
     }
 }
 
@@ -321,6 +324,31 @@ impl<const N: usize> GPTDatasetV1<N> {
     }
 }
 
+fn create_dataloader_v1<B: Backend, const N: usize>(
+    txt: String,
+    batch_size: usize,
+    max_length: usize,
+    stride: usize,
+    shuffle: bool,
+    _drop_last: bool,
+    num_workers: usize,
+) -> Arc<dyn DataLoader<B, GPTDatasetBatch<B>>> {
+    let mut builder = DataLoaderBuilder::<B, _, _>::new(GPTDatasetBatcher {})
+        .batch_size(batch_size)
+        .num_workers(num_workers);
+
+    if shuffle {
+        builder = builder.shuffle(0);
+    }
+
+    builder.build(GPTDatasetV1::<N>::new_from_text(
+        txt,
+        Box::new(UnsafeBPETokenizer::new("gpt2")),
+        max_length,
+        stride,
+    ))
+}
+
 #[cfg(test)]
 mod tests {
     use std::{
@@ -330,7 +358,11 @@ mod tests {
         marker::PhantomData,
     };
 
-    use burn::data::dataset::Dataset;
+    use burn::{
+        backend::ndarray::NdArrayDevice,
+        data::dataset::Dataset,
+        nn::{Embedding, EmbeddingConfig},
+    };
     use log::info;
 
     use crate::listings::ch02::{
@@ -552,4 +584,43 @@ mod tests {
         assert_eq!(batch.input_ids.shape().dims, [batch_size, N]);
         assert_eq!(batch.target_ids.shape().dims, [batch_size, N]);
     }
+
+    #[rstest]
+    fn test_token_embeddings(#[expect(unused_variables)] init_logger: &()) {
+        let embedding_config = EmbeddingConfig {
+            n_embedding: 6,
+            d_model: 3,
+            initializer: burn::nn::Initializer::Normal {
+                mean: 0.5,
+                std: 0.2,
+            },
+        };
+
+        use burn::backend::NdArray;
+
+        type Backend = NdArray;
+        let device = &NdArrayDevice::Cpu;
+        let embedding_module: Embedding<Backend> = embedding_config.init(device);
+
+        info!(weights:? = embedding_module.weight.val(); "initialized embedding module");
+
+        let vector = embedding_module.forward(burn::Tensor::from_ints([[3]], device));
+        info!(vector:?; "applied embedding module");
+
+        let vector = embedding_module.forward(burn::Tensor::from_ints([[2, 3, 5, 1]], device));
+        info!(vector:?; "applied embedding module");
+    }
+
+    // #[rstest]
+    // fn test_token_embeddings_with_dataloader(#[expect(unused_variables)] init_logger: &()) {
+    //     let token_embedding_module: Embedding<NdArray> = EmbeddingConfig {
+    //         n_embedding: 50257,
+    //         d_model: 256,
+    //         initializer: burn::nn::Initializer::Normal {
+    //             mean: 0.5,
+    //             std: 0.2,
+    //         },
+    //     }
+    //     .init(&NdArrayDevice::Cpu);
+    // }
 }
