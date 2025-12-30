@@ -363,7 +363,7 @@ mod tests {
         data::dataset::Dataset,
         nn::{Embedding, EmbeddingConfig},
     };
-    use log::info;
+    use log::{debug, info};
 
     use crate::listings::ch02::{
         Corpus, GPTDatasetBatcher, GPTDatasetV1, SimpleTokenizerV1, SimpleTokenizerV2,
@@ -603,13 +603,15 @@ mod tests {
         let device = &NdArrayDevice::Cpu;
         let embedding_module: Embedding<Backend> = embedding_config.init(device);
 
-        info!(weights:? = embedding_module.weight.val(); "initialized embedding module");
+        debug!(weights:? = embedding_module.weight.val(); "initialized embedding module");
 
         let vector = embedding_module.forward(burn::Tensor::from_ints([[3]], device));
-        info!(vector:?; "applied embedding module");
+        debug!(vector:?; "applied embedding module");
+        assert_eq!(vector.shape().dims, vec![1, 1, 3]);
 
         let vector = embedding_module.forward(burn::Tensor::from_ints([[2, 3, 5, 1]], device));
-        info!(vector:?; "applied embedding module");
+        debug!(vector:?; "applied embedding module");
+        assert_eq!(vector.shape().dims, vec![1, 4, 3]);
     }
 
     #[rstest]
@@ -642,9 +644,15 @@ mod tests {
         );
 
         let batch = dataloader.iter().next().unwrap();
-        info!(input_ids:? = batch.input_ids, shape:? = batch.input_ids.shape() ; "retrieved batch");
+        debug!(input_ids:? = batch.input_ids, shape:? = batch.input_ids.shape() ; "retrieved batch");
+        assert_eq!(batch.input_ids.shape().dims, vec![8, 4]);
 
         let token_embeddings = token_embedding_module.forward(batch.input_ids);
-        info!(shape:? = token_embeddings.shape() ; "retrieved embeddings");
+
+        let shape = token_embeddings.shape();
+
+        debug!(shape:?; "retrieved embeddings");
+
+        assert_eq!(shape.dims, vec![8, 4, 256]);
     }
 }
