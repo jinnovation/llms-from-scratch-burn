@@ -359,6 +359,7 @@ mod tests {
     };
 
     use burn::{
+        Tensor,
         backend::{Wgpu, ndarray::NdArrayDevice, wgpu::WgpuDevice},
         data::dataset::Dataset,
         nn::{Embedding, EmbeddingConfig},
@@ -621,9 +622,11 @@ mod tests {
 
         let device = &WgpuDevice::default();
 
+        let output_dim = 256;
+
         let token_embedding_module: Embedding<Backend> = EmbeddingConfig {
             n_embedding: 50257,
-            d_model: 256,
+            d_model: output_dim,
             initializer: burn::nn::Initializer::Normal {
                 mean: 0.5,
                 std: 0.2,
@@ -654,5 +657,30 @@ mod tests {
         debug!(shape:?; "retrieved embeddings");
 
         assert_eq!(shape.dims, vec![8, 4, 256]);
+
+        let pos_embedding_module: Embedding<Backend> = EmbeddingConfig {
+            n_embedding: MAX_LENGTH,
+            d_model: output_dim,
+            initializer: burn::nn::Initializer::Normal {
+                mean: 0.5,
+                std: 0.2,
+            },
+        }
+        .init(device);
+
+        let embeddings_input: Tensor<Backend, _, _> =
+            Tensor::arange(0..MAX_LENGTH as i64, device).reshape([1, MAX_LENGTH]);
+        info!(orig_dim:? = embeddings_input.shape().dims; "testing");
+
+        let pos_embeddings = pos_embedding_module.forward(embeddings_input);
+
+        // NB(@jinnovation): This differs from book, which has this output shape as [4,
+        // 256]. Unclear at this point whether this is just a Burn vs PyTorch semantics issue or if
+        // there's something consequential here.
+        assert_eq!(pos_embeddings.shape().dims, vec![1, 4, 256]);
+
+        let input_embeddings = token_embeddings + pos_embeddings;
+
+        assert_eq!(input_embeddings.shape().dims, vec![8, 4, 256]);
     }
 }
