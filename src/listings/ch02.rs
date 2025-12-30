@@ -613,6 +613,7 @@ mod tests {
     }
 
     #[rstest]
+    #[cfg_attr(feature = "ci", ignore)]
     fn test_token_embeddings_with_dataloader(#[expect(unused_variables)] init_logger: &()) {
         type Backend = Wgpu<f32, i32>;
 

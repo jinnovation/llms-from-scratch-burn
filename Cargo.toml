@@ -3,6 +3,9 @@ name = "llms-from-scratch-burn"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+ci = []
+
 [dependencies]
 burn = { version = "0.19.1", features = ["dataset", "ndarray", "tch", "wgpu"] }
 clap = { version = "4.5.53", features = ["derive"] }
