@@ -359,7 +359,7 @@ mod tests {
     };
 
     use burn::{
-        backend::ndarray::NdArrayDevice,
+        backend::{Wgpu, ndarray::NdArrayDevice, wgpu::WgpuDevice},
         data::dataset::Dataset,
         nn::{Embedding, EmbeddingConfig},
     };
@@ -367,7 +367,8 @@ mod tests {
 
     use crate::listings::ch02::{
         Corpus, GPTDatasetBatcher, GPTDatasetV1, SimpleTokenizerV1, SimpleTokenizerV2,
-        THE_VERDICT_URL, Tokenizer, construct_vocab_from_url, text_from_url, tokenize,
+        THE_VERDICT_URL, Tokenizer, construct_vocab_from_url, create_dataloader_v1, text_from_url,
+        tokenize,
     };
 
     use burn::data::dataloader::DataLoaderBuilder;
@@ -611,16 +612,38 @@ mod tests {
         info!(vector:?; "applied embedding module");
     }
 
-    // #[rstest]
-    // fn test_token_embeddings_with_dataloader(#[expect(unused_variables)] init_logger: &()) {
-    //     let token_embedding_module: Embedding<NdArray> = EmbeddingConfig {
-    //         n_embedding: 50257,
-    //         d_model: 256,
-    //         initializer: burn::nn::Initializer::Normal {
-    //             mean: 0.5,
-    //             std: 0.2,
-    //         },
-    //     }
-    //     .init(&NdArrayDevice::Cpu);
-    // }
+    #[rstest]
+    fn test_token_embeddings_with_dataloader(#[expect(unused_variables)] init_logger: &()) {
+        type Backend = Wgpu<f32, i32>;
+
+        let device = &WgpuDevice::default();
+
+        let token_embedding_module: Embedding<Backend> = EmbeddingConfig {
+            n_embedding: 50257,
+            d_model: 256,
+            initializer: burn::nn::Initializer::Normal {
+                mean: 0.5,
+                std: 0.2,
+            },
+        }
+        .init(device);
+
+        const MAX_LENGTH: usize = 4;
+
+        let dataloader = create_dataloader_v1::<Backend, MAX_LENGTH>(
+            text_from_url(THE_VERDICT_URL.to_string()).unwrap(),
+            8,
+            MAX_LENGTH,
+            4,
+            false,
+            false,
+            0,
+        );
+
+        let batch = dataloader.iter().next().unwrap();
+        info!(input_ids:? = batch.input_ids, shape:? = batch.input_ids.shape() ; "retrieved batch");
+
+        let token_embeddings = token_embedding_module.forward(batch.input_ids);
+        info!(shape:? = token_embeddings.shape() ; "retrieved embeddings");
+    }
 }
