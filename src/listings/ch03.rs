@@ -2,7 +2,7 @@
 mod tests {
     use burn::backend::NdArray;
     use burn::tensor::activation::softmax;
-    use burn::tensor::{Int, TensorData, Tolerance};
+    use burn::tensor::{Int, TensorData, Tolerance, s};
     use burn::{Tensor, backend::ndarray::NdArrayDevice};
     use log::info;
     use rstest::{fixture, rstest};
@@ -102,6 +102,36 @@ mod tests {
 
         context_vec_2.to_data().assert_approx_eq(
             &TensorData::new(vec![0.4419, 0.6515, 0.5683], vec![3]),
+            Tolerance::<f32>::balanced(),
+        );
+
+        let mut attn_scores: Tensor<Backend, 2> = burn::Tensor::empty([6, 6], device);
+
+        for (i, x_i) in inputs.clone().iter_dim(0).enumerate() {
+            for (j, x_j) in inputs.clone().iter_dim(0).enumerate() {
+                let dot = x_i
+                    .clone()
+                    .squeeze::<1>()
+                    .dot(x_j.squeeze::<1>())
+                    .into_scalar();
+                attn_scores = attn_scores.slice_assign(
+                    s![i..i + 1, j..j + 1],
+                    Tensor::<Backend, 2>::from_data([[dot]], device),
+                )
+            }
+        }
+        info!(attn_scores:?; "finalized attention scores");
+
+        attn_scores.to_data().assert_approx_eq(
+            &TensorData::new(
+                vec![
+                    0.9995, 0.9544, 0.9422, 0.4753, 0.4576, 0.6310, 0.9544, 1.4950, 1.4754, 0.8434,
+                    0.7070, 1.0865, 0.9422, 1.4754, 1.4570, 0.8296, 0.7154, 1.0605, 0.4753, 0.8434,
+                    0.8296, 0.4937, 0.3474, 0.6565, 0.4576, 0.7070, 0.7154, 0.3474, 0.6654, 0.2935,
+                    0.6310, 1.0865, 1.0605, 0.6565, 0.2935, 0.9450,
+                ],
+                vec![6, 6],
+            ),
             Tolerance::<f32>::balanced(),
         );
     }
