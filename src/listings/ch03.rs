@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use burn::backend::NdArray;
+    use burn::tensor::activation::softmax;
     use burn::tensor::{Int, TensorData, Tolerance};
     use burn::{Tensor, backend::ndarray::NdArrayDevice};
     use log::info;
@@ -9,9 +10,9 @@ mod tests {
     #[fixture]
     #[once]
     fn init_logger() -> () {
-        env_logger::builder()
+        _ = env_logger::builder()
             .filter_level(log::LevelFilter::Info)
-            .init();
+            .try_init();
     }
 
     #[rstest]
@@ -52,6 +53,36 @@ mod tests {
                 vec![0.9544, 1.4950, 1.4754, 0.8434, 0.7070, 1.0865],
                 vec![6],
             ),
+            Tolerance::<f32>::balanced(),
+        );
+
+        let attn_weights_2_tmp = attn_scores_2.clone() / attn_scores_2.clone().sum();
+
+        attn_weights_2_tmp.to_data().assert_approx_eq(
+            &TensorData::new(
+                vec![0.1455, 0.2278, 0.2249, 0.1285, 0.1077, 0.1656],
+                vec![6],
+            ),
+            Tolerance::<f32>::balanced(),
+        );
+
+        attn_weights_2_tmp.sum().to_data().assert_approx_eq(
+            &TensorData::new(vec![1.00], vec![1]),
+            Tolerance::<f32>::balanced(),
+        );
+
+        let attn_weights_2 = softmax(attn_scores_2, 0);
+
+        attn_weights_2.to_data().assert_approx_eq(
+            &TensorData::new(
+                vec![0.1385, 0.2379, 0.2333, 0.1240, 0.1082, 0.1581],
+                vec![6],
+            ),
+            Tolerance::<f32>::balanced(),
+        );
+
+        attn_weights_2.sum().to_data().assert_approx_eq(
+            &TensorData::new(vec![1.00], vec![1]),
             Tolerance::<f32>::balanced(),
         );
     }
