@@ -39,7 +39,7 @@ mod tests {
         let mut attn_scores_2: Tensor<Backend, 1> =
             burn::Tensor::empty([inputs.shape().dims[0]], device);
 
-        for (i, x_i) in inputs.iter_dim(0).enumerate() {
+        for (i, x_i) in inputs.clone().iter_dim(0).enumerate() {
             let x_i_squeezed = x_i.clone().squeeze::<1>();
             let score = x_i_squeezed.dot(query.clone().squeeze::<1>());
 
@@ -81,8 +81,27 @@ mod tests {
             Tolerance::<f32>::balanced(),
         );
 
-        attn_weights_2.sum().to_data().assert_approx_eq(
+        attn_weights_2.clone().sum().to_data().assert_approx_eq(
             &TensorData::new(vec![1.00], vec![1]),
+            Tolerance::<f32>::balanced(),
+        );
+
+        let query = inputs
+            .clone()
+            .select(0, Tensor::<Backend, 1, Int>::from_data([1], device));
+
+        let mut context_vec_2: Tensor<Backend, 1> =
+            burn::Tensor::empty([query.shape().dims[0]], device);
+
+        for (i, x_i) in inputs.clone().iter_dim(0).enumerate() {
+            let selected = attn_weights_2
+                .clone()
+                .select(0, Tensor::<Backend, 1, Int>::from_data([i], device));
+            context_vec_2 = context_vec_2 + selected * x_i.squeeze::<1>();
+        }
+
+        context_vec_2.to_data().assert_approx_eq(
+            &TensorData::new(vec![0.4419, 0.6515, 0.5683], vec![3]),
             Tolerance::<f32>::balanced(),
         );
     }
